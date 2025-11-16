@@ -1,5 +1,7 @@
 package com.example.abra.models;
 
+import java.util.List;
+
 public class Variant {
 
     private class Weight {
@@ -23,5 +25,5 @@ public class Variant {
 
     public String name;
     public Weight weight;
-    public Endpoint endpoint;
+    public List<Endpoint> endpoints;
 }
