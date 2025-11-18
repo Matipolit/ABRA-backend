@@ -6,18 +6,26 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+
 @AllArgsConstructor
 @NoArgsConstructor
 @Data
-@Entity(name="test")
+@Entity(name = "test")
 public class TestModel {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private String test_id;
-    @Column(name="name", length = 50)
+
+    @Column(name = "name", length = 50)
     private String name;
-    @Column(name="description", length = 50)
+
+    @Column(name = "description", length = 50)
     private String description;
+
     @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY, mappedBy = "testModel")
     private List<VariantModel> variantModels;
+
+    @ManyToOne()
+    @JoinColumn(name = "domain_id")
+    private DomainModel domainModel;
 }
