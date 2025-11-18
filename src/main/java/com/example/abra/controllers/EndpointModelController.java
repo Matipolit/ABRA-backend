@@ -34,12 +34,12 @@ public class EndpointModelController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<String> update(
+    public ResponseEntity<Void> update(
             @PathVariable String id,
             @RequestBody EndpointModel endpointModel
     ) {
         endpointModelService.updateEndpoint(endpointModel);
-        return ResponseEntity.ok("Hello world");
+        return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}")

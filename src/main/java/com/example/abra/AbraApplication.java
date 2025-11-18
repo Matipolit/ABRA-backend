@@ -6,6 +6,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 @SpringBootApplication
 @RestController
 public class AbraApplication {
@@ -14,10 +16,12 @@ public class AbraApplication {
         SpringApplication.run(AbraApplication.class, args);
     }
 
-    @GetMapping("/hello")
-    public String hello(
-        @RequestParam(value = "name", defaultValue = "World") String name
-    ) {
-        return String.format("Hello %s!", name);
+    @GetMapping("/")
+    public String root(HttpServletRequest request) {
+        String host = request.getServerName(); // Returns "shop.com"
+        String scheme = request.getScheme();    // Returns "http" or "https"
+
+        return "Welcome to Abra! Host: " + host + ", Scheme: " + scheme;
+
     }
 }
