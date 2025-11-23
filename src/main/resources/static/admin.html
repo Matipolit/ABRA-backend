@@ -1,0 +1,1332 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>ABRA Admin - Development CRUD</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    Oxygen, Ubuntu, Cantarell, sans-serif;
+                background: #f5f5f5;
+                padding: 20px;
+            }
+
+            .container {
+                max-width: 1400px;
+                margin: 0 auto;
+            }
+
+            h1 {
+                color: #333;
+                margin-bottom: 30px;
+                text-align: center;
+            }
+
+            .tabs {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 20px;
+                border-bottom: 2px solid #ddd;
+            }
+
+            .tab {
+                padding: 12px 24px;
+                background: #fff;
+                border: 1px solid #ddd;
+                border-bottom: none;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                transition: all 0.3s;
+            }
+
+            .tab:hover {
+                background: #f0f0f0;
+            }
+
+            .tab.active {
+                background: #007bff;
+                color: white;
+                border-color: #007bff;
+            }
+
+            .tab-content {
+                display: none;
+                background: white;
+                padding: 30px;
+                border-radius: 8px;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            }
+
+            .tab-content.active {
+                display: block;
+            }
+
+            .section {
+                margin-bottom: 40px;
+            }
+
+            .section h2 {
+                color: #555;
+                margin-bottom: 20px;
+                font-size: 20px;
+                border-bottom: 2px solid #007bff;
+                padding-bottom: 10px;
+            }
+
+            .form-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 15px;
+                margin-bottom: 20px;
+            }
+
+            .form-group {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .form-group.checkbox {
+                flex-direction: row;
+                align-items: center;
+                gap: 8px;
+            }
+
+            label {
+                font-size: 13px;
+                font-weight: 600;
+                color: #555;
+                margin-bottom: 5px;
+            }
+
+            .form-group.checkbox label {
+                margin-bottom: 0;
+                font-weight: 500;
+                cursor: pointer;
+            }
+
+            input,
+            select,
+            textarea {
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                transition: border-color 0.3s;
+            }
+
+            textarea {
+                min-height: 80px;
+                resize: vertical;
+                font-family: inherit;
+            }
+
+            input:focus,
+            select:focus,
+            textarea:focus {
+                outline: none;
+                border-color: #007bff;
+            }
+
+            input[type="checkbox"] {
+                width: 20px;
+                height: 20px;
+                cursor: pointer;
+                padding: 0;
+            }
+
+            button {
+                padding: 10px 20px;
+                background: #007bff;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 14px;
+                font-weight: 500;
+                transition: background 0.3s;
+            }
+
+            button:hover {
+                background: #0056b3;
+            }
+
+            button.delete {
+                background: #dc3545;
+            }
+
+            button.delete:hover {
+                background: #c82333;
+            }
+
+            button.secondary {
+                background: #6c757d;
+            }
+
+            button.secondary:hover {
+                background: #5a6268;
+            }
+
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 20px;
+                overflow-x: auto;
+                display: block;
+            }
+
+            thead,
+            tbody {
+                display: table;
+                width: 100%;
+                table-layout: fixed;
+            }
+
+            th,
+            td {
+                padding: 12px;
+                text-align: left;
+                border-bottom: 1px solid #ddd;
+                word-wrap: break-word;
+            }
+
+            th {
+                background: #f8f9fa;
+                font-weight: 600;
+                color: #555;
+                font-size: 13px;
+                text-transform: uppercase;
+            }
+
+            tr:hover {
+                background: #f8f9fa;
+            }
+
+            .actions {
+                display: flex;
+                gap: 8px;
+            }
+
+            .actions button {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
+
+            .message {
+                padding: 12px;
+                margin-bottom: 20px;
+                border-radius: 4px;
+                display: none;
+            }
+
+            .message.success {
+                background: #d4edda;
+                color: #155724;
+                border: 1px solid #c3e6cb;
+                display: block;
+            }
+
+            .message.error {
+                background: #f8d7da;
+                color: #721c24;
+                border: 1px solid #f5c6cb;
+                display: block;
+            }
+
+            .button-group {
+                display: flex;
+                gap: 10px;
+                margin-top: 20px;
+            }
+
+            .empty-state {
+                text-align: center;
+                padding: 40px;
+                color: #999;
+            }
+
+            select[multiple] {
+                min-height: 100px;
+            }
+
+            .form-full-width {
+                grid-column: 1 / -1;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🔧 ABRA Admin Panel (Development)</h1>
+
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('domains')">
+                    Domains
+                </div>
+                <div class="tab" onclick="switchTab('tests')">Tests</div>
+                <div class="tab" onclick="switchTab('variants')">Variants</div>
+                <div class="tab" onclick="switchTab('endpoints')">
+                    Endpoints
+                </div>
+            </div>
+
+            <!-- DOMAINS TAB -->
+            <div id="domains-tab" class="tab-content active">
+                <div class="message" id="domains-message"></div>
+
+                <div class="section">
+                    <h2>Create/Update Domain</h2>
+                    <form id="domain-form">
+                        <input type="hidden" id="domain-id" name="domain_id" />
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="domain-host">Host *</label>
+                                <input
+                                    type="text"
+                                    id="domain-host"
+                                    name="host"
+                                    required
+                                    placeholder="example.com"
+                                />
+                            </div>
+                            <div class="form-group checkbox">
+                                <input
+                                    type="checkbox"
+                                    id="domain-active"
+                                    name="active"
+                                />
+                                <label for="domain-active">Is Active</label>
+                            </div>
+                        </div>
+                        <div class="button-group">
+                            <button type="submit">Save Domain</button>
+                            <button
+                                type="button"
+                                class="secondary"
+                                onclick="resetDomainForm()"
+                            >
+                                Clear Form
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="section">
+                    <h2>Domains List</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Host</th>
+                                <th>Active</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="domains-list">
+                            <tr>
+                                <td colspan="4" class="empty-state">
+                                    Loading...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TESTS TAB -->
+            <div id="tests-tab" class="tab-content">
+                <div class="message" id="tests-message"></div>
+
+                <div class="section">
+                    <h2>Create/Update Test</h2>
+                    <form id="test-form">
+                        <input type="hidden" id="test-id" name="test_id" />
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="test-name">Name *</label>
+                                <input
+                                    type="text"
+                                    id="test-name"
+                                    name="name"
+                                    required
+                                    maxlength="50"
+                                    placeholder="Test name"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="test-subpath">Subpath</label>
+                                <input
+                                    type="text"
+                                    id="test-subpath"
+                                    name="subpath"
+                                    maxlength="100"
+                                    placeholder="/path"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="test-domain">Domain</label>
+                                <select id="test-domain" name="domain_id">
+                                    <option value="">
+                                        -- Select Domain --
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="form-group checkbox">
+                                <input
+                                    type="checkbox"
+                                    id="test-active"
+                                    name="active"
+                                />
+                                <label for="test-active">Is Active</label>
+                            </div>
+                            <div class="form-group form-full-width">
+                                <label for="test-description"
+                                    >Description</label
+                                >
+                                <textarea
+                                    id="test-description"
+                                    name="description"
+                                    maxlength="500"
+                                    placeholder="Test description"
+                                ></textarea>
+                            </div>
+                        </div>
+                        <div class="button-group">
+                            <button type="submit">Save Test</button>
+                            <button
+                                type="button"
+                                class="secondary"
+                                onclick="resetTestForm()"
+                            >
+                                Clear Form
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="section">
+                    <h2>Tests List</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 15%">ID</th>
+                                <th style="width: 15%">Name</th>
+                                <th style="width: 15%">Subpath</th>
+                                <th style="width: 25%">Description</th>
+                                <th style="width: 8%">Active</th>
+                                <th style="width: 12%">Domain</th>
+                                <th style="width: 10%">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tests-list">
+                            <tr>
+                                <td colspan="7" class="empty-state">
+                                    Loading...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- VARIANTS TAB -->
+            <div id="variants-tab" class="tab-content">
+                <div class="message" id="variants-message"></div>
+
+                <div class="section">
+                    <h2>Create/Update Variant</h2>
+                    <form id="variant-form">
+                        <input
+                            type="hidden"
+                            id="variant-id"
+                            name="variant_id"
+                        />
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="variant-name">Name *</label>
+                                <input
+                                    type="text"
+                                    id="variant-name"
+                                    name="name"
+                                    required
+                                    maxlength="50"
+                                    placeholder="Variant name"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="variant-weight"
+                                    >Weight (1-100) *</label
+                                >
+                                <input
+                                    type="number"
+                                    id="variant-weight"
+                                    name="weight"
+                                    required
+                                    min="1"
+                                    max="100"
+                                    placeholder="50"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="variant-test">Test</label>
+                                <select id="variant-test" name="test_id">
+                                    <option value="">-- Select Test --</option>
+                                </select>
+                            </div>
+                            <div class="form-group checkbox">
+                                <input
+                                    type="checkbox"
+                                    id="variant-active"
+                                    name="active"
+                                />
+                                <label for="variant-active">Is Active</label>
+                            </div>
+                            <div class="form-group form-full-width">
+                                <label for="variant-description"
+                                    >Description</label
+                                >
+                                <textarea
+                                    id="variant-description"
+                                    name="description"
+                                    maxlength="500"
+                                    placeholder="Variant description"
+                                ></textarea>
+                            </div>
+                        </div>
+                        <div class="button-group">
+                            <button type="submit">Save Variant</button>
+                            <button
+                                type="button"
+                                class="secondary"
+                                onclick="resetVariantForm()"
+                            >
+                                Clear Form
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="section">
+                    <h2>Variants List</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 15%">ID</th>
+                                <th style="width: 15%">Name</th>
+                                <th style="width: 30%">Description</th>
+                                <th style="width: 8%">Weight</th>
+                                <th style="width: 8%">Active</th>
+                                <th style="width: 14%">Test</th>
+                                <th style="width: 10%">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="variants-list">
+                            <tr>
+                                <td colspan="7" class="empty-state">
+                                    Loading...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ENDPOINTS TAB -->
+            <div id="endpoints-tab" class="tab-content">
+                <div class="message" id="endpoints-message"></div>
+
+                <div class="section">
+                    <h2>Create/Update Endpoint</h2>
+                    <form id="endpoint-form">
+                        <input
+                            type="hidden"
+                            id="endpoint-id-old"
+                            name="url_old"
+                        />
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="endpoint-url">URL *</label>
+                                <input
+                                    type="text"
+                                    id="endpoint-url"
+                                    name="url"
+                                    required
+                                    maxlength="50"
+                                    placeholder="/api/v1/endpoint"
+                                />
+                            </div>
+                            <div class="form-group">
+                                <label for="endpoint-variant">Variant</label>
+                                <select id="endpoint-variant" name="variant_id">
+                                    <option value="">
+                                        -- Select Variant --
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="endpoint-domain">Domain</label>
+                                <select id="endpoint-domain" name="domain_id">
+                                    <option value="">
+                                        -- Select Domain --
+                                    </option>
+                                </select>
+                            </div>
+                            <div class="form-group checkbox">
+                                <input
+                                    type="checkbox"
+                                    id="endpoint-active"
+                                    name="active"
+                                />
+                                <label for="endpoint-active">Is Active</label>
+                            </div>
+                            <div class="form-group checkbox">
+                                <input
+                                    type="checkbox"
+                                    id="endpoint-alive"
+                                    name="alive"
+                                />
+                                <label for="endpoint-alive">Is Alive</label>
+                            </div>
+                            <div class="form-group form-full-width">
+                                <label for="endpoint-description"
+                                    >Description</label
+                                >
+                                <textarea
+                                    id="endpoint-description"
+                                    name="description"
+                                    maxlength="500"
+                                    placeholder="Endpoint description"
+                                ></textarea>
+                            </div>
+                        </div>
+                        <div class="button-group">
+                            <button type="submit">Save Endpoint</button>
+                            <button
+                                type="button"
+                                class="secondary"
+                                onclick="resetEndpointForm()"
+                            >
+                                Clear Form
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="section">
+                    <h2>Endpoints List</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 15%">URL</th>
+                                <th style="width: 30%">Description</th>
+                                <th style="width: 8%">Active</th>
+                                <th style="width: 8%">Alive</th>
+                                <th style="width: 14%">Variant</th>
+                                <th style="width: 15%">Domain</th>
+                                <th style="width: 10%">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="endpoints-list">
+                            <tr>
+                                <td colspan="7" class="empty-state">
+                                    Loading...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            const API_BASE = "/api";
+
+            // Tab switching
+            function switchTab(tabName) {
+                document
+                    .querySelectorAll(".tab")
+                    .forEach((t) => t.classList.remove("active"));
+                document
+                    .querySelectorAll(".tab-content")
+                    .forEach((t) => t.classList.remove("active"));
+
+                event.target.classList.add("active");
+                document
+                    .getElementById(tabName + "-tab")
+                    .classList.add("active");
+
+                loadTabData(tabName);
+            }
+
+            // Show messages
+            function showMessage(entity, message, type = "success") {
+                const msgEl = document.getElementById(`${entity}-message`);
+                msgEl.textContent = message;
+                msgEl.className = `message ${type}`;
+                setTimeout(() => {
+                    msgEl.className = "message";
+                }, 3000);
+            }
+
+            // Generic API calls
+            async function apiCall(url, options = {}) {
+                try {
+                    const response = await fetch(API_BASE + url, {
+                        ...options,
+                        headers: {
+                            "Content-Type": "application/json",
+                            ...options.headers,
+                        },
+                    });
+
+                    if (!response.ok && response.status !== 204) {
+                        throw new Error(
+                            `HTTP ${response.status}: ${response.statusText}`,
+                        );
+                    }
+
+                    if (response.status === 204) return null;
+                    return await response.json();
+                } catch (error) {
+                    console.error("API Error:", error);
+                    throw error;
+                }
+            }
+
+            // DOMAINS
+            async function loadDomains() {
+                try {
+                    const domains = await apiCall("/domains");
+                    const tbody = document.getElementById("domains-list");
+
+                    if (!domains || domains.length === 0) {
+                        tbody.innerHTML =
+                            '<tr><td colspan="4" class="empty-state">No domains found</td></tr>';
+                        return;
+                    }
+
+                    tbody.innerHTML = domains
+                        .map(
+                            (d) => `
+                    <tr>
+                        <td>${d.domain_id || ""}</td>
+                        <td>${d.host || ""}</td>
+                        <td>${d.active ? "✓" : "✗"}</td>
+                        <td class="actions">
+                            <button onclick="editDomain('${d.domain_id}')">Edit</button>
+                            <button class="delete" onclick="deleteDomain('${d.domain_id}')">Delete</button>
+                        </td>
+                    </tr>
+                `,
+                        )
+                        .join("");
+
+                    // Update dropdowns
+                    updateDomainDropdowns(domains);
+                } catch (error) {
+                    showMessage(
+                        "domains",
+                        "Error loading domains: " + error.message,
+                        "error",
+                    );
+                }
+            }
+
+            function updateDomainDropdowns(domains) {
+                const selects = [
+                    document.getElementById("test-domain"),
+                    document.getElementById("endpoint-domain"),
+                ];
+                selects.forEach((select) => {
+                    const currentValue = select.value;
+                    select.innerHTML =
+                        '<option value="">-- Select Domain --</option>' +
+                        domains
+                            .map(
+                                (d) =>
+                                    `<option value="${d.domain_id}">${d.host}</option>`,
+                            )
+                            .join("");
+                    select.value = currentValue;
+                });
+            }
+
+            async function editDomain(id) {
+                try {
+                    const domain = await apiCall(`/domains/${id}`);
+                    document.getElementById("domain-id").value =
+                        domain.domain_id || "";
+                    document.getElementById("domain-host").value =
+                        domain.host || "";
+                    document.getElementById("domain-active").checked =
+                        domain.active || false;
+                } catch (error) {
+                    showMessage(
+                        "domains",
+                        "Error loading domain: " + error.message,
+                        "error",
+                    );
+                }
+            }
+
+            async function deleteDomain(id) {
+                if (!confirm("Are you sure you want to delete this domain?"))
+                    return;
+
+                try {
+                    await apiCall(`/domains/${id}`, { method: "DELETE" });
+                    showMessage("domains", "Domain deleted successfully");
+                    loadDomains();
+                } catch (error) {
+                    showMessage(
+                        "domains",
+                        "Error deleting domain: " + error.message,
+                        "error",
+                    );
+                }
+            }
+
+            function resetDomainForm() {
+                document.getElementById("domain-form").reset();
+                document.getElementById("domain-id").value = "";
+            }
+
+            document
+                .getElementById("domain-form")
+                .addEventListener("submit", async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    const id = formData.get("domain_id");
+                    const active =
+                        document.getElementById("domain-active").checked;
+
+                    const data = {
+                        domain_id: id || undefined,
+                        host: formData.get("host"),
+                        active: active,
+                    };
+
+                    try {
+                        if (id) {
+                            await apiCall(`/domains/${id}`, {
+                                method: "PUT",
+                                body: JSON.stringify(data),
+                            });
+                            showMessage(
+                                "domains",
+                                "Domain updated successfully",
+                            );
+                        } else {
+                            await apiCall("/domains", {
+                                method: "POST",
+                                body: JSON.stringify(data),
+                            });
+                            showMessage(
+                                "domains",
+                                "Domain created successfully",
+                            );
+                        }
+                        resetDomainForm();
+                        loadDomains();
+                    } catch (error) {
+                        showMessage(
+                            "domains",
+                            "Error saving domain: " + error.message,
+                            "error",
+                        );
+                    }
+                });
+
+            // TESTS
+            async function loadTests() {
+                try {
+                    const tests = await apiCall("/tests");
+                    const tbody = document.getElementById("tests-list");
+
+                    if (!tests || tests.length === 0) {
+                        tbody.innerHTML =
+                            '<tr><td colspan="7" class="empty-state">No tests found</td></tr>';
+                        return;
+                    }
+
+                    tbody.innerHTML = tests
+                        .map(
+                            (t) => `
+                    <tr>
+                        <td>${t.test_id || ""}</td>
+                        <td>${t.name || ""}</td>
+                        <td>${t.subpath || ""}</td>
+                        <td>${t.description || ""}</td>
+                        <td>${t.active ? "✓" : "✗"}</td>
+                        <td>${t.domainModel?.host || "N/A"}</td>
+                        <td class="actions">
+                            <button onclick="editTest('${t.test_id}')">Edit</button>
+                            <button class="delete" onclick="deleteTest('${t.test_id}')">Delete</button>
+                        </td>
+                    </tr>
+                `,
+                        )
+                        .join("");
+
+                    // Update dropdowns
+                    updateTestDropdowns(tests);
+                } catch (error) {
+                    showMessage(
+                        "tests",
+                        "Error loading tests: " + error.message,
+                        "error",
+                    );
+                }
+            }
+
+            function updateTestDropdowns(tests) {
+                const select = document.getElementById("variant-test");
+                const currentValue = select.value;
+                select.innerHTML =
+                    '<option value="">-- Select Test --</option>' +
+                    tests
+                        .map(
+                            (t) =>
+                                `<option value="${t.test_id}">${t.name}</option>`,
+                        )
+                        .join("");
+                select.value = currentValue;
+            }
+
+            async function editTest(id) {
+                try {
+                    const test = await apiCall(`/tests/${id}`);
+                    document.getElementById("test-id").value =
+                        test.test_id || "";
+                    document.getElementById("test-name").value =
+                        test.name || "";
+                    document.getElementById("test-subpath").value =
+                        test.subpath || "";
+                    document.getElementById("test-description").value =
+                        test.description || "";
+                    document.getElementById("test-active").checked =
+                        test.active || false;
+                    document.getElementById("test-domain").value =
+                        test.domainModel?.domain_id || "";
+                } catch (error) {
+                    showMessage(
+                        "tests",
+                        "Error loading test: " + error.message,
+                        "error",
+                    );
+                }
+            }
+
+            async function deleteTest(id) {
+                if (!confirm("Are you sure you want to delete this test?"))
+                    return;
+
+                try {
+                    await apiCall(`/tests/${id}`, { method: "DELETE" });
+                    showMessage("tests", "Test deleted successfully");
+                    loadTests();
+                } catch (error) {
+                    showMessage(
+                        "tests",
+                        "Error deleting test: " + error.message,
+                        "error",
+                    );
+                }
+            }
+
+            function resetTestForm() {
+                document.getElementById("test-form").reset();
+                document.getElementById("test-id").value = "";
+            }
+
+            document
+                .getElementById("test-form")
+                .addEventListener("submit", async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    const id = formData.get("test_id");
+                    const domainId = formData.get("domain_id");
+
+                    const data = {
+                        test_id: id || undefined,
+                        name: formData.get("name"),
+                        subpath: formData.get("subpath"),
+                        description: formData.get("description"),
+                        active: document.getElementById("test-active").checked,
+                        domainModel: domainId ? { domain_id: domainId } : null,
+                    };
+
+                    try {
+                        if (id) {
+                            await apiCall(`/tests/${id}`, {
+                                method: "PUT",
+                                body: JSON.stringify(data),
+                            });
+                            showMessage("tests", "Test updated successfully");
+                        } else {
+                            await apiCall("/tests", {
+                                method: "POST",
+                                body: JSON.stringify(data),
+                            });
+                            showMessage("tests", "Test created successfully");
+                        }
+                        resetTestForm();
+                        loadTests();
+                    } catch (error) {
+                        showMessage(
+                            "tests",
+                            "Error saving test: " + error.message,
+                            "error",
+                        );
+                    }
+                });
+
+            // VARIANTS
+            async function loadVariants() {
+                try {
+                    const variants = await apiCall("/variants");
+                    const tbody = document.getElementById("variants-list");
+
+                    if (!variants || variants.length === 0) {
+                        tbody.innerHTML =
+                            '<tr><td colspan="7" class="empty-state">No variants found</td></tr>';
+                        return;
+                    }
+
+                    tbody.innerHTML = variants
+                        .map(
+                            (v) => `
+                    <tr>
+                        <td>${v.variant_id || ""}</td>
+                        <td>${v.name || ""}</td>
+                        <td>${v.description || ""}</td>
+                        <td>${v.weight || ""}</td>
+                        <td>${v.active ? "✓" : "✗"}</td>
+                        <td>${v.testModel?.name || "N/A"}</td>
+                        <td class="actions">
+                            <button onclick="editVariant('${v.variant_id}')">Edit</button>
+                            <button class="delete" onclick="deleteVariant('${v.variant_id}')">Delete</button>
+                        </td>
+                    </tr>
+                `,
+                        )
+                        .join("");
+
+                    // Update dropdowns
+                    updateVariantDropdowns(variants);
+                } catch (error) {
+                    showMessage(
+                        "variants",
+                        "Error loading variants: " + error.message,
+                        "error",
+                    );
+                }
+            }
+
+            function updateVariantDropdowns(variants) {
+                const select = document.getElementById("endpoint-variant");
+                const currentValue = select.value;
+                select.innerHTML =
+                    '<option value="">-- Select Variant --</option>' +
+                    variants
+                        .map(
+                            (v) =>
+                                `<option value="${v.variant_id}">${v.name}</option>`,
+                        )
+                        .join("");
+                select.value = currentValue;
+            }
+
+            async function editVariant(id) {
+                try {
+                    const variant = await apiCall(`/variants/${id}`);
+                    document.getElementById("variant-id").value =
+                        variant.variant_id || "";
+                    document.getElementById("variant-name").value =
+                        variant.name || "";
+                    document.getElementById("variant-description").value =
+                        variant.description || "";
+                    document.getElementById("variant-weight").value =
+                        variant.weight || "";
+                    document.getElementById("variant-active").checked =
+                        variant.active || false;
+                    document.getElementById("variant-test").value =
+                        variant.testModel?.test_id || "";
+                } catch (error) {
+                    showMessage(
+                        "variants",
+                        "Error loading variant: " + error.message,
+                        "error",
+                    );
+                }
+            }
+
+            async function deleteVariant(id) {
+                if (!confirm("Are you sure you want to delete this variant?"))
+                    return;
+
+                try {
+                    await apiCall(`/variants/${id}`, { method: "DELETE" });
+                    showMessage("variants", "Variant deleted successfully");
+                    loadVariants();
+                } catch (error) {
+                    showMessage(
+                        "variants",
+                        "Error deleting variant: " + error.message,
+                        "error",
+                    );
+                }
+            }
+
+            function resetVariantForm() {
+                document.getElementById("variant-form").reset();
+                document.getElementById("variant-id").value = "";
+            }
+
+            document
+                .getElementById("variant-form")
+                .addEventListener("submit", async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    const id = formData.get("variant_id");
+                    const testId = formData.get("test_id");
+
+                    const data = {
+                        variant_id: id || undefined,
+                        name: formData.get("name"),
+                        description: formData.get("description"),
+                        weight: parseInt(formData.get("weight")),
+                        active: document.getElementById("variant-active")
+                            .checked,
+                        testModel: testId ? { test_id: testId } : null,
+                    };
+
+                    try {
+                        if (id) {
+                            await apiCall(`/variants/${id}`, {
+                                method: "PUT",
+                                body: JSON.stringify(data),
+                            });
+                            showMessage(
+                                "variants",
+                                "Variant updated successfully",
+                            );
+                        } else {
+                            await apiCall("/variants", {
+                                method: "POST",
+                                body: JSON.stringify(data),
+                            });
+                            showMessage(
+                                "variants",
+                                "Variant created successfully",
+                            );
+                        }
+                        resetVariantForm();
+                        loadVariants();
+                    } catch (error) {
+                        showMessage(
+                            "variants",
+                            "Error saving variant: " + error.message,
+                            "error",
+                        );
+                    }
+                });
+
+            // ENDPOINTS
+            async function loadEndpoints() {
+                try {
+                    const endpoints = await apiCall("/endpoints");
+                    const tbody = document.getElementById("endpoints-list");
+
+                    if (!endpoints || endpoints.length === 0) {
+                        tbody.innerHTML =
+                            '<tr><td colspan="7" class="empty-state">No endpoints found</td></tr>';
+                        return;
+                    }
+
+                    tbody.innerHTML = endpoints
+                        .map(
+                            (e) => `
+                    <tr>
+                        <td>${e.url || ""}</td>
+                        <td>${e.description || ""}</td>
+                        <td>${e.active ? "✓" : "✗"}</td>
+                        <td>${e.alive ? "✓" : "✗"}</td>
+                        <td>${e.variantModel?.name || "N/A"}</td>
+                        <td>${e.domainModel?.host || "N/A"}</td>
+                        <td class="actions">
+                            <button onclick="editEndpoint('${e.url}')">Edit</button>
+                            <button class="delete" onclick="deleteEndpoint('${e.url}')">Delete</button>
+                        </td>
+                    </tr>
+                `,
+                        )
+                        .join("");
+                } catch (error) {
+                    showMessage(
+                        "endpoints",
+                        "Error loading endpoints: " + error.message,
+                        "error",
+                    );
+                }
+            }
+
+            async function editEndpoint(url) {
+                try {
+                    const endpoint = await apiCall(
+                        `/endpoints/${encodeURIComponent(url)}`,
+                    );
+                    document.getElementById("endpoint-id-old").value =
+                        endpoint.url || "";
+                    document.getElementById("endpoint-url").value =
+                        endpoint.url || "";
+                    document.getElementById("endpoint-description").value =
+                        endpoint.description || "";
+                    document.getElementById("endpoint-active").checked =
+                        endpoint.active || false;
+                    document.getElementById("endpoint-alive").checked =
+                        endpoint.alive || false;
+                    document.getElementById("endpoint-variant").value =
+                        endpoint.variantModel?.variant_id || "";
+                    document.getElementById("endpoint-domain").value =
+                        endpoint.domainModel?.domain_id || "";
+                } catch (error) {
+                    showMessage(
+                        "endpoints",
+                        "Error loading endpoint: " + error.message,
+                        "error",
+                    );
+                }
+            }
+
+            async function deleteEndpoint(url) {
+                if (!confirm("Are you sure you want to delete this endpoint?"))
+                    return;
+
+                try {
+                    await apiCall(`/endpoints/${encodeURIComponent(url)}`, {
+                        method: "DELETE",
+                    });
+                    showMessage("endpoints", "Endpoint deleted successfully");
+                    loadEndpoints();
+                } catch (error) {
+                    showMessage(
+                        "endpoints",
+                        "Error deleting endpoint: " + error.message,
+                        "error",
+                    );
+                }
+            }
+
+            function resetEndpointForm() {
+                document.getElementById("endpoint-form").reset();
+                document.getElementById("endpoint-id-old").value = "";
+            }
+
+            document
+                .getElementById("endpoint-form")
+                .addEventListener("submit", async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    const oldUrl = formData.get("url_old");
+                    const newUrl = formData.get("url");
+                    const variantId = formData.get("variant_id");
+                    const domainId = formData.get("domain_id");
+
+                    const data = {
+                        url: newUrl,
+                        description: formData.get("description"),
+                        active: document.getElementById("endpoint-active")
+                            .checked,
+                        alive: document.getElementById("endpoint-alive")
+                            .checked,
+                        variantModel: variantId
+                            ? { variant_id: variantId }
+                            : null,
+                        domainModel: domainId ? { domain_id: domainId } : null,
+                    };
+
+                    try {
+                        if (oldUrl) {
+                            // For updates, we might need to delete and recreate if URL changed
+                            if (oldUrl !== newUrl) {
+                                await apiCall(
+                                    `/endpoints/${encodeURIComponent(oldUrl)}`,
+                                    { method: "DELETE" },
+                                );
+                                await apiCall("/endpoints", {
+                                    method: "POST",
+                                    body: JSON.stringify(data),
+                                });
+                                showMessage(
+                                    "endpoints",
+                                    "Endpoint updated successfully (URL changed)",
+                                );
+                            } else {
+                                await apiCall(
+                                    `/endpoints/${encodeURIComponent(oldUrl)}`,
+                                    {
+                                        method: "PUT",
+                                        body: JSON.stringify(data),
+                                    },
+                                );
+                                showMessage(
+                                    "endpoints",
+                                    "Endpoint updated successfully",
+                                );
+                            }
+                        } else {
+                            await apiCall("/endpoints", {
+                                method: "POST",
+                                body: JSON.stringify(data),
+                            });
+                            showMessage(
+                                "endpoints",
+                                "Endpoint created successfully",
+                            );
+                        }
+                        resetEndpointForm();
+                        loadEndpoints();
+                    } catch (error) {
+                        showMessage(
+                            "endpoints",
+                            "Error saving endpoint: " + error.message,
+                            "error",
+                        );
+                    }
+                });
+
+            // Load data for active tab
+            function loadTabData(tabName) {
+                switch (tabName) {
+                    case "domains":
+                        loadDomains();
+                        break;
+                    case "tests":
+                        loadDomains();
+                        loadTests();
+                        break;
+                    case "variants":
+                        loadTests();
+                        loadVariants();
+                        break;
+                    case "endpoints":
+                        loadDomains();
+                        loadVariants();
+                        loadEndpoints();
+                        break;
+                }
+            }
+
+            // Initial load
+            loadTabData("domains");
+        </script>
+    </body>
+</html>

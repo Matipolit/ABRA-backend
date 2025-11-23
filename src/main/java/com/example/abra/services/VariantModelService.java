@@ -2,11 +2,10 @@ package com.example.abra.services;
 
 import com.example.abra.models.VariantModel;
 import com.example.abra.repositories.VariantModelRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Service;
-
 import java.util.List;
 import java.util.Optional;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
@@ -16,6 +15,10 @@ public class VariantModelService {
 
     public List<VariantModel> findAllVariants() {
         return variantModelRepository.findAll();
+    }
+
+    public List<VariantModel> findAllVariantsByTestId(String testId) {
+        return variantModelRepository.findAllByTestId(testId);
     }
 
     public Optional<VariantModel> findByVariantId(String id) {
