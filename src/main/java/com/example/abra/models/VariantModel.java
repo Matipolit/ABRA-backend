@@ -1,6 +1,7 @@
 package com.example.abra.models;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -16,13 +17,19 @@ public class VariantModel {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private String variant_id;
+
     @Column(name="name", length = 50)
     private String name;
+
+    @Size(min = 1, max = 100)
     @Column(name="weight")
     private int weight;
+
     @ManyToOne()
     @JoinColumn(name="test_id")
     private TestModel testModel;
+    
     @OneToMany(cascade = CascadeType.ALL, fetch = FetchType.LAZY, mappedBy = "variantModel")
     private List<EndpointModel> endpointModels = new ArrayList<>();
+
 }

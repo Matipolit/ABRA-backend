@@ -13,11 +13,18 @@ public class EndpointModel {
     @Id
     @Column(name="url", length = 50)
     private String url;
+
     @Column(name="description", length = 50)
     private String description;
+
     @Column(name="alive")
     private boolean alive;
+
     @ManyToOne()
     @JoinColumn(name="variant_id")
     private VariantModel variantModel;
+
+    @ManyToOne()
+    @JoinColumn(name="domain_id")
+    private DomainModel domainModel;
 }
