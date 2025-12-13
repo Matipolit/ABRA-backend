@@ -25,6 +25,11 @@ public class VariantModelController {
         return ResponseEntity.ok(variantModelService.findAllVariants());
     }
 
+    @GetMapping("/byTestId/{testId}")
+    public ResponseEntity<List<VariantModel>> getAllByTestId(@PathVariable String testId) {
+        return ResponseEntity.ok(variantModelService.findAllVariantsByTestId(testId));
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<VariantModel> getById(@PathVariable String id) {
         return variantModelService.findByVariantId(id)
