@@ -8,6 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.lang.NonNull;
 
 import java.util.Arrays;
 import java.util.List;
@@ -25,13 +26,11 @@ class TestModelServiceTest {
     @InjectMocks
     private TestModelService service;
 
-    private TestModel sample;
+    private @NonNull TestModel sample = new TestModel();
 
     @BeforeEach
     void setUp() {
         sample = new TestModel();
-        // Only set simple fields to avoid circular references in tests
-        // Lombok-generated setters
         sample.setTest_id("id-1");
         sample.setName("TestName");
         sample.setDescription("Desc");

@@ -5,6 +5,7 @@ import com.example.abra.repositories.DomainModelRepository;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -17,23 +18,23 @@ public class DomainModelService {
         return domainModelRepository.findAll();
     }
 
-    public Optional<DomainModel> findByDomainId(String id) {
+    public Optional<DomainModel> findByDomainId(@NonNull String id) {
         return domainModelRepository.findById(id);
     }
 
-    public Optional<DomainModel> findActiveByDomainHost(String host) {
+    public Optional<DomainModel> findActiveByDomainHost(@NonNull String host) {
         return domainModelRepository.findByHostAndIsActiveTrue(host);
     }
 
-    public DomainModel addDomain(DomainModel domainModel) {
+    public DomainModel addDomain(@NonNull DomainModel domainModel) {
         return domainModelRepository.save(domainModel);
     }
 
-    public void updateDomain(DomainModel updated) {
+    public void updateDomain(@NonNull DomainModel updated) {
         domainModelRepository.save(updated);
     }
 
-    public void deleteDomainById(String id) {
+    public void deleteDomainById(@NonNull String id) {
         domainModelRepository.deleteById(id);
     }
 }

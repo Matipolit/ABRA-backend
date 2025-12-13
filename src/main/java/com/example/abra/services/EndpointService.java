@@ -4,13 +4,13 @@ import com.example.abra.models.EndpointModel;
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URI;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.security.oauth2.server.servlet.OAuth2AuthorizationServerProperties.Endpoint;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -46,7 +46,7 @@ public class EndpointService {
         return availableEndpoints.get(index);
     }
 
-    @Scheduled(fixedRate = 30000) // Every 30 seconds
+    @Scheduled(fixedRate = 30000)
     public void performHealthChecks() {
         log.info("Performing health checks...");
         List<EndpointModel> endpoints = endpointModelService.findAllEndpoints();
@@ -63,7 +63,7 @@ public class EndpointService {
 
     private boolean pingEndpoint(String urlString) {
         try {
-            URL url = new URL(urlString);
+            URL url = URI.create(urlString).toURL();
             HttpURLConnection connection =
                 (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");

@@ -1,10 +1,10 @@
 package com.example.abra.controllers;
 
 import com.example.abra.models.DomainModel;
-import com.example.abra.repositories.DomainModelRepository;
 import com.example.abra.services.DomainModelService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.lang.NonNull;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -20,7 +20,9 @@ public class DomainModelController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<DomainModel> getDomainById(@PathVariable String id) {
+    public ResponseEntity<DomainModel> getDomainById(
+        @PathVariable @NonNull String id
+    ) {
         return domainModelService
             .findByDomainId(id)
             .map(ResponseEntity::ok)
@@ -29,7 +31,7 @@ public class DomainModelController {
 
     @PostMapping
     public ResponseEntity<DomainModel> createDomain(
-        @RequestBody DomainModel domainModel
+        @RequestBody @NonNull DomainModel domainModel
     ) {
         DomainModel created = domainModelService.addDomain(domainModel);
         return ResponseEntity.ok(created);
@@ -37,15 +39,15 @@ public class DomainModelController {
 
     @PutMapping("/{id}")
     public ResponseEntity<Void> updateDomain(
-        @PathVariable String id,
-        @RequestBody DomainModel domainModel
+        @PathVariable @NonNull String id,
+        @RequestBody @NonNull DomainModel domainModel
     ) {
         domainModelService.updateDomain(domainModel);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteDomain(@PathVariable String id) {
+    public ResponseEntity<Void> deleteDomain(@PathVariable @NonNull String id) {
         domainModelService.deleteDomainById(id);
         return ResponseEntity.noContent().build();
     }

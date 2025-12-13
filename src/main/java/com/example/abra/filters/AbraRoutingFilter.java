@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import lombok.RequiredArgsConstructor;
+import org.springframework.lang.NonNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -30,37 +31,55 @@ public class AbraRoutingFilter extends OncePerRequestFilter {
     private String adminHost;
 
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
+    protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
         return request.getServerName().equalsIgnoreCase(adminHost);
     }
 
     @Override
     protected void doFilterInternal(
-        HttpServletRequest request,
-        HttpServletResponse response,
-        FilterChain filterChain
+        @NonNull HttpServletRequest request,
+        @NonNull HttpServletResponse response,
+        @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
         String host = request.getServerName();
+        if (host == null) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String path = request.getRequestURI();
+        if (path == null) {
+            path = "";
+        }
 
         DomainModel domain = domainModelService
             .findActiveByDomainHost(host)
             .orElse(null);
 
         if (domain != null) {
+            String domainId = domain.getDomain_id();
+            if (domainId == null) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+
             TestModel matchedTest = testModelService
-                .findBestMatchingTest(domain.getDomain_id(), path)
+                .findBestMatchingTest(domainId, path)
                 .orElse(null);
 
             if (matchedTest != null) {
+                String testId = matchedTest.getTest_id();
+                if (testId == null) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
                 List<VariantModel> variants =
                     variantModelService.findAllVariantsByTestId(
-                        matchedTest.getTest_id()
+                        testId
                     );
 
                 VariantModel selectedVariant = chooseVariant(variants);
-
-                // Write the response directly
                 response.setContentType("text/plain");
                 response
                     .getWriter()
@@ -76,12 +95,9 @@ public class AbraRoutingFilter extends OncePerRequestFilter {
                             "), Selected variant: " +
                             selectedVariant.getName()
                     );
-                // Do NOT call filterChain.doFilter here - we handled the response
                 return;
             }
         }
-
-        // If no domain matched or no test matched, pass it down the chain
         filterChain.doFilter(request, response);
     }
 
