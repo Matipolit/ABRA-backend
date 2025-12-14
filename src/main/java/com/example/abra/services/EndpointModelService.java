@@ -18,6 +18,10 @@ public class EndpointModelService {
         return endpointModelRepository.findAll();
     }
 
+    public List<EndpointModel> findByVariantId(String variantId) {
+        return endpointModelRepository.findByVariantId(variantId);
+    }
+
     public Optional<EndpointModel> findByEndpointId(String id) {
         return endpointModelRepository.findById(id);
     }
