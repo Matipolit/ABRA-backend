@@ -41,7 +41,7 @@ public class VariantModel {
 
     @OneToMany(
         cascade = CascadeType.ALL,
-        fetch = FetchType.EAGER,
+        orphanRemoval = true,
         mappedBy = "variantModel"
     )
     @JsonIgnoreProperties({ "variantModel", "domainModel" })

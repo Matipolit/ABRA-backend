@@ -31,7 +31,7 @@ public class TestModel {
 
     @OneToMany(
         cascade = CascadeType.ALL,
-        fetch = FetchType.EAGER,
+        orphanRemoval = true,
         mappedBy = "testModel"
     )
     @JsonIgnoreProperties({ "testModel", "endpointModels" })

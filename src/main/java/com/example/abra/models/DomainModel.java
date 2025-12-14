@@ -26,7 +26,7 @@ public class DomainModel {
     @OneToMany(
         mappedBy = "domainModel",
         cascade = CascadeType.ALL,
-        fetch = FetchType.EAGER
+        orphanRemoval = true
     )
     @JsonIgnoreProperties({ "domainModel", "variantModel" })
     private List<EndpointModel> defaultEndpoints;
@@ -34,7 +34,7 @@ public class DomainModel {
     @OneToMany(
         mappedBy = "domainModel",
         cascade = CascadeType.ALL,
-        fetch = FetchType.EAGER
+        orphanRemoval = true
     )
     @JsonIgnoreProperties({ "domainModel", "variantModels" })
     private List<TestModel> tests;
