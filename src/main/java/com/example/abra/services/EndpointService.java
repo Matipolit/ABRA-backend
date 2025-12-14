@@ -24,10 +24,12 @@ public class EndpointService {
     private final Map<String, AtomicInteger> roundRobinCounters =
         new ConcurrentHashMap<>();
 
-    public EndpointModel selectEndpoint(
-        String variantId,
-        List<EndpointModel> endpoints
-    ) {
+    /**
+     * Select a healthy endpoint for the given variant using round-robin load balancing
+     */
+    public EndpointModel selectEndpoint(String variantId) {
+        List<EndpointModel> endpoints = endpointModelService.findByVariantId(variantId);
+        
         List<EndpointModel> availableEndpoints = endpoints
             .stream()
             .filter(EndpointModel::isActive)

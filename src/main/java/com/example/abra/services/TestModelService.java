@@ -29,6 +29,17 @@ public class TestModelService {
         );
     }
 
+    /**
+     * Finds the best matching test for a given domain and request path.
+     * Prioritizes more specific paths:
+     * 1. Exact match has highest priority
+     * 2. Longest prefix match if no exact match
+     *
+     * @param domainId The domain ID
+     * @param requestPath The requested path (e.g., "/cart/details")
+     * @return Optional containing the best matching test, or empty if no match
+     */
+
     public Optional<TestModel> findBestMatchingTest(
         @NonNull String domainId,
         @NonNull String requestPath
