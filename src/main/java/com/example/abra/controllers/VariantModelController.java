@@ -58,6 +58,7 @@ public class VariantModelController {
             @PathVariable String id,
             @RequestBody VariantModel variantModel
     ) {
+        variantModel.setVariant_id(id);
         variantModelService.updateVariant(variantModel);
         return ResponseEntity.ok("Updated");
     }
