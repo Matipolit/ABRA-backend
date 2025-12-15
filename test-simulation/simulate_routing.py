@@ -3,9 +3,10 @@
 ABRA Backend Routing Simulation Test
 
 This script simulates real-world usage of the ABRA routing system:
-1. Sets up domains, tests, variants, and endpoints via the admin API
-2. Starts mock endpoint servers that respond to health checks
-3. Performs various routing requests to demonstrate:
+1. Authenticates with the admin API using JWT tokens
+2. Sets up domains, tests, variants, and endpoints via the admin API
+3. Starts mock endpoint servers that respond to health checks
+4. Performs various routing requests to demonstrate:
    - Weighted variant selection (50/50 and 50/30/20)
    - Round-robin load balancing across endpoints
    - Cookie-based session persistence (same user stays on same variant)
@@ -13,6 +14,7 @@ This script simulates real-world usage of the ABRA routing system:
 Prerequisites:
 - ABRA backend running on localhost:8080
 - Admin host configured as 'localhost' in application.properties
+- Default user configured (username: 'admin', password: 'admin')
 
 Usage:
     python3 simulate_routing.py
@@ -34,6 +36,13 @@ import requests
 # Configuration
 ADMIN_BASE_URL = "http://localhost:8080"
 DOMAIN_HOST = "sklep.pl"
+
+# Authentication credentials (default user from application.properties)
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "admin"
+
+# Global variable to store JWT token
+jwt_token = None
 
 # Endpoint ports for our mock servers
 ENDPOINT_PORTS = {
@@ -82,10 +91,14 @@ class MockEndpointHandler(http.server.BaseHTTPRequestHandler):
         pass
 
 
+class ReusableTCPServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
+
 def start_mock_server(port):
     """Start a mock HTTP server on the given port"""
     handler = MockEndpointHandler
-    with socketserver.TCPServer(("", port), handler) as httpd:
+    with ReusableTCPServer(("", port), handler) as httpd:
         httpd.serve_forever()
 
 
@@ -108,10 +121,46 @@ def start_all_mock_servers():
     return threads
 
 
+def login_and_get_token():
+    """Login to the admin API and get JWT token"""
+    print("\n" + "=" * 60)
+    print("AUTHENTICATING WITH ADMIN API")
+    print("=" * 60)
+    
+    url = urljoin(ADMIN_BASE_URL, "/api/auth/login")
+    login_data = {
+        "login": ADMIN_USERNAME,
+        "password": ADMIN_PASSWORD
+    }
+    
+    try:
+        response = requests.post(url, json=login_data, headers={"Content-Type": "application/json"})
+        if response.status_code == 200:
+            token_data = response.json()
+            token = token_data.get("token")
+            if token:
+                print(f"  ✓ Successfully authenticated as '{ADMIN_USERNAME}'")
+                print(f"  ✓ JWT token obtained (expires in 1 hour)")
+                return token
+            else:
+                print(f"  ✗ Login succeeded but no token in response")
+                return None
+        else:
+            print(f"  ✗ Authentication failed: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        print(f"  ✗ Authentication error: {e}")
+        return None
+
+
 def admin_request(method, endpoint, data=None):
-    """Make a request to the admin API"""
+    """Make a request to the admin API with JWT authentication"""
     url = urljoin(ADMIN_BASE_URL, endpoint)
     headers = {"Content-Type": "application/json"}
+    
+    # Add JWT token to headers if available
+    if jwt_token:
+        headers["Authorization"] = f"Bearer {jwt_token}"
     
     if method == "GET":
         response = requests.get(url, headers=headers)
@@ -596,11 +645,14 @@ def simulate_routing_requests():
 
 
 def main():
+    global jwt_token
+    
     print("""
 ╔═══════════════════════════════════════════════════════════════╗
 ║          ABRA ROUTING SIMULATION TEST                         ║
 ║                                                               ║
 ║  This script demonstrates:                                    ║
+║  • JWT authentication for admin API                           ║
 ║  • Weighted variant selection (A/B testing)                   ║
 ║  • Round-robin load balancing across endpoints                ║
 ║  • Cookie-based session persistence                           ║
@@ -611,11 +663,20 @@ def main():
     # Check if ABRA backend is running
     print("Checking if ABRA backend is running...")
     try:
-        response = requests.get(f"{ADMIN_BASE_URL}/api/domains", timeout=5)
+        response = requests.get(f"{ADMIN_BASE_URL}/api/auth/login", timeout=5)
         print(f"  ✓ ABRA backend is running at {ADMIN_BASE_URL}")
     except requests.exceptions.ConnectionError:
         print(f"  ✗ ERROR: Cannot connect to ABRA backend at {ADMIN_BASE_URL}")
         print(f"    Please start the backend first: ./gradlew bootRun")
+        return
+    
+    # Authenticate and get JWT token
+    jwt_token = login_and_get_token()
+    if not jwt_token:
+        print("\n✗ Failed to authenticate. Cannot proceed with admin API calls.")
+        print(f"   Make sure the default user is configured:")
+        print(f"   - Username: {ADMIN_USERNAME}")
+        print(f"   - Password: {ADMIN_PASSWORD}")
         return
     
     # Start mock servers
