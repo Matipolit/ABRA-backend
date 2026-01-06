@@ -1,6 +1,7 @@
 package com.example.abra.models;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -36,7 +37,7 @@ public class VariantModel {
 
     @ManyToOne
     @JoinColumn(name = "test_id")
-    @JsonIgnoreProperties({ "variantModels", "domainModel" })
+    @JsonBackReference
     private TestModel testModel;
 
     @OneToMany(
@@ -44,6 +45,6 @@ public class VariantModel {
         orphanRemoval = true,
         mappedBy = "variantModel"
     )
-    @JsonIgnoreProperties({ "variantModel", "domainModel" })
+    @JsonManagedReference
     private List<EndpointModel> endpointModels = new ArrayList<>();
 }

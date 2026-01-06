@@ -1,5 +1,6 @@
 package com.example.abra.models;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -27,7 +28,7 @@ public class EndpointModel {
 
     @ManyToOne
     @JoinColumn(name = "variant_id")
-    @JsonIgnoreProperties({ "testModel", "endpointModels" })
+    @JsonBackReference
     private VariantModel variantModel;
 
     @ManyToOne
