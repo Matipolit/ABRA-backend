@@ -4,17 +4,16 @@ import com.example.abra.config.WebConfig;
 import com.example.abra.filters.AbraRoutingFilter;
 import com.example.abra.integration.ai.AiClientService;
 import com.example.abra.integration.ai.dto.AiPredictionResult;
+import com.example.abra.security.JwtService;
+import com.example.abra.services.UserModelService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.ComponentScan;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.FilterType;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
-
-import org.mockito.Mockito;
 
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -29,23 +28,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
                 classes = { AbraRoutingFilter.class, WebConfig.class }
         )
 )
-@Import(AiTestControllerTest.TestConfig.class)
+@WithMockUser
 class AiTestControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
 
-        @Autowired
+    @MockitoBean
     private AiClientService aiClientService;
 
-        @TestConfiguration
-        static class TestConfig {
+    @MockitoBean
+    private JwtService jwtService;
 
-                @Bean
-                AiClientService aiClientService() {
-                        return Mockito.mock(AiClientService.class);
-                }
-        }
+    @MockitoBean
+    private UserModelService userModelService;
 
     private static final String TEST_SERVER_ID = "test-server-01";
 
@@ -80,6 +76,6 @@ class AiTestControllerTest {
         // When & Then
         mockMvc.perform(get("/api/test-ai/health"))
                 .andExpect(status().isOk())
-                .andExpect(content().string("AI service: http://localhost:8000"));
+                .andExpect(content().string("AI Service URL: http://localhost:8000"));
     }
 }

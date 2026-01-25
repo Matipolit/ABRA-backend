@@ -608,51 +608,8 @@ def simulate_routing_requests():
         elif len(endpoint_dist) == 1:
             print(f"    Note: Only one endpoint was hit (other may be unhealthy)")
 
-    # Test 4: Multiple paths, same user
-    print("\n\n[TEST 4] Multiple Tests, Same User")
-    print("-" * 40)
-    print("Same user accessing different paths gets potentially different variants")
-
-    session4 = requests.Session()
-
-    print("\n  User C accessing /cart and /user alternately (5 times each):")
-
-    for i in range(5):
-        try:
-            # Request to /cart
-            response = session4.get(
-                f"http://localhost:8080/cart",
-                headers={"Host": DOMAIN_HOST},
-                allow_redirects=False,
-                timeout=5,
-            )
-            cart_port = ""
-            if response.status_code == 302:
-                location = response.headers.get("Location", "")
-                if ":900" in location:
-                    cart_port = location.split(":")[2].split("/")[0]
-
-            # Request to /user
-            response = session4.get(
-                f"http://localhost:8080/user",
-                headers={"Host": DOMAIN_HOST},
-                allow_redirects=False,
-                timeout=5,
-            )
-            user_port = ""
-            if response.status_code == 302:
-                location = response.headers.get("Location", "")
-                if ":901" in location:
-                    user_port = location.split(":")[2].split("/")[0]
-
-            print(
-                f"    Request {i + 1}: /cart -> port {cart_port}, /user -> port {user_port}"
-            )
-        except Exception as e:
-            print(f"    Request {i + 1}: Error - {e}")
-
-    # Test 5: Health check failure detection
-    print("\n\n[TEST 5] Health Check Failure Detection")
+    # Test 4: Health check failure detection
+    print("\n\n[TEST 4] Health Check Failure Detection")
     print("-" * 40)
     print("Testing that unhealthy endpoints are not used after health check fails")
 
