@@ -48,7 +48,7 @@ public class EndpointService {
         return availableEndpoints.get(index);
     }
 
-    @Scheduled(fixedRate = 30000)
+    @Scheduled(initialDelay = 60000, fixedRate = 30000)
     public void performHealthChecks() {
         log.info("Performing health checks...");
         List<EndpointModel> endpoints = endpointModelService.findAllEndpoints();
@@ -65,19 +65,30 @@ public class EndpointService {
 
     private boolean pingEndpoint(String urlString) {
         try {
+            // Validate and fix URL if needed
+            if (urlString == null || urlString.isEmpty()) {
+                return false;
+            }
+            
+            // Ensure URL is absolute (has scheme)
+            if (!urlString.matches("^https?://.*")) {
+                urlString = "http://" + urlString;
+            }
+            
             URL url = URI.create(urlString).toURL();
             HttpURLConnection connection =
                 (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("GET");
-            connection.setConnectTimeout(5000);
-            connection.setReadTimeout(5000);
+            connection.setConnectTimeout(50);
+            connection.setReadTimeout(50);
             connection.connect();
 
             int responseCode = connection.getResponseCode();
             connection.disconnect();
 
             return responseCode == HttpURLConnection.HTTP_OK;
-        } catch (IOException e) {
+        } catch (IOException | IllegalArgumentException e) {
+            log.debug("Failed to ping endpoint {}: {}", urlString, e.getMessage());
             return false;
         }
     }
