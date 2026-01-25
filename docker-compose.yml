@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: abra-postgres
+    environment:
+      POSTGRES_DB: abradb
+      POSTGRES_USER: abrauser
+      POSTGRES_PASSWORD: abrapass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U abrauser -d abradb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: abra-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/abradb
+      SPRING_DATASOURCE_USERNAME: abrauser
+      SPRING_DATASOURCE_PASSWORD: abrapass
+      JAVA_OPTS: "-Xmx512m -Xms256m"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:

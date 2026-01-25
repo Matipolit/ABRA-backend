@@ -3,9 +3,10 @@
 ABRA Backend Routing Simulation Test
 
 This script simulates real-world usage of the ABRA routing system:
-1. Sets up domains, tests, variants, and endpoints via the admin API
-2. Starts mock endpoint servers that respond to health checks
-3. Performs various routing requests to demonstrate:
+1. Authenticates with the admin API using JWT tokens
+2. Sets up domains, tests, variants, and endpoints via the admin API
+3. Starts mock endpoint servers that respond to health checks
+4. Performs various routing requests to demonstrate:
    - Weighted variant selection (50/50 and 50/30/20)
    - Round-robin load balancing across endpoints
    - Cookie-based session persistence (same user stays on same variant)
@@ -13,6 +14,7 @@ This script simulates real-world usage of the ABRA routing system:
 Prerequisites:
 - ABRA backend running on localhost:8080
 - Admin host configured as 'localhost' in application.properties
+- Default user configured (username: 'admin', password: 'admin')
 
 Usage:
     python3 simulate_routing.py
@@ -31,11 +33,14 @@ from urllib.parse import urljoin
 
 import requests
 
-# Configuration
 ADMIN_BASE_URL = "http://localhost:8080"
 DOMAIN_HOST = "sklep.pl"
 
-# Endpoint ports for our mock servers
+ADMIN_USERNAME = "admin"
+ADMIN_PASSWORD = "admin"
+
+jwt_token = None
+
 ENDPOINT_PORTS = {
     # Variant endpoints (for A/B test routing)
     "cart_v1_e1": 9001,
@@ -57,36 +62,45 @@ ENDPOINT_PORTS = {
 request_counts = defaultdict(int)
 request_counts_lock = threading.Lock()
 
+# Store server objects for management
+mock_servers = {}
+
 
 class MockEndpointHandler(http.server.BaseHTTPRequestHandler):
     """Simple HTTP handler that responds to all requests with 200 OK"""
-    
+
     def do_GET(self):
         port = self.server.server_address[1]
         endpoint_name = next(
-            (name for name, p in ENDPOINT_PORTS.items() if p == port),
-            f"port-{port}"
+            (name for name, p in ENDPOINT_PORTS.items() if p == port), f"port-{port}"
         )
-        
+
         with request_counts_lock:
             request_counts[endpoint_name] += 1
-        
+
         self.send_response(200)
         self.send_header("Content-Type", "text/plain")
         self.end_headers()
-        response = f"Response from endpoint: {endpoint_name} (port {port})\nPath: {self.path}"
+        response = (
+            f"Response from endpoint: {endpoint_name} (port {port})\nPath: {self.path}"
+        )
         self.wfile.write(response.encode())
-    
+
     def log_message(self, format, *args):
         # Suppress default logging
         pass
 
 
-def start_mock_server(port):
+class ReusableTCPServer(socketserver.TCPServer):
+    allow_reuse_address = True
+
+
+def start_mock_server(port, server_dict):
     """Start a mock HTTP server on the given port"""
     handler = MockEndpointHandler
-    with socketserver.TCPServer(("", port), handler) as httpd:
-        httpd.serve_forever()
+    httpd = ReusableTCPServer(("", port), handler)
+    server_dict[port] = httpd
+    httpd.serve_forever()
 
 
 def start_all_mock_servers():
@@ -94,25 +108,65 @@ def start_all_mock_servers():
     print("\n" + "=" * 60)
     print("STARTING MOCK ENDPOINT SERVERS")
     print("=" * 60)
-    
+
     threads = []
+    servers = {}
     for name, port in ENDPOINT_PORTS.items():
-        thread = threading.Thread(target=start_mock_server, args=(port,), daemon=True)
+        thread = threading.Thread(
+            target=start_mock_server, args=(port, servers), daemon=True
+        )
         thread.start()
         threads.append(thread)
         print(f"  ✓ Started mock server: {name} on port {port}")
-    
+
     # Give servers time to start
     time.sleep(1)
     print(f"\nAll {len(ENDPOINT_PORTS)} mock servers running!")
-    return threads
+    return threads, servers
+
+
+def login_and_get_token():
+    """Login to the admin API and get JWT token"""
+    print("\n" + "=" * 60)
+    print("AUTHENTICATING WITH ADMIN API")
+    print("=" * 60)
+
+    url = urljoin(ADMIN_BASE_URL, "/api/auth/login")
+    login_data = {"login": ADMIN_USERNAME, "password": ADMIN_PASSWORD}
+
+    try:
+        response = requests.post(
+            url, json=login_data, headers={"Content-Type": "application/json"}
+        )
+        if response.status_code == 200:
+            token_data = response.json()
+            token = token_data.get("token")
+            if token:
+                print(f"  ✓ Successfully authenticated as '{ADMIN_USERNAME}'")
+                print("  ✓ JWT token obtained (expires in 1 hour)")
+                return token
+            else:
+                print("  ✗ Login succeeded but no token in response")
+                return None
+        else:
+            print(
+                f"  ✗ Authentication failed: {response.status_code} - {response.text}"
+            )
+            return None
+    except Exception as e:
+        print(f"  ✗ Authentication error: {e}")
+        return None
 
 
 def admin_request(method, endpoint, data=None):
-    """Make a request to the admin API"""
+    """Make a request to the admin API with JWT authentication"""
     url = urljoin(ADMIN_BASE_URL, endpoint)
     headers = {"Content-Type": "application/json"}
-    
+
+    # Add JWT token to headers if available
+    if jwt_token:
+        headers["Authorization"] = f"Bearer {jwt_token}"
+
     if method == "GET":
         response = requests.get(url, headers=headers)
     elif method == "POST":
@@ -121,7 +175,7 @@ def admin_request(method, endpoint, data=None):
         response = requests.delete(url, headers=headers)
     else:
         raise ValueError(f"Unknown method: {method}")
-    
+
     return response
 
 
@@ -130,7 +184,7 @@ def cleanup_existing_data():
     print("\n" + "=" * 60)
     print("CLEANING UP EXISTING DATA")
     print("=" * 60)
-    
+
     # First, get all domains to find the one we need to delete
     try:
         response = admin_request("GET", "/api/domains")
@@ -140,11 +194,17 @@ def cleanup_existing_data():
                 if domain.get("host") == DOMAIN_HOST:
                     domain_id = domain.get("domain_id")
                     # Delete associated endpoints, variants, tests first (cascade may handle this)
-                    delete_response = admin_request("DELETE", f"/api/domains/{domain_id}")
+                    delete_response = admin_request(
+                        "DELETE", f"/api/domains/{domain_id}"
+                    )
                     if delete_response.status_code in [200, 204]:
-                        print(f"  ✓ Deleted existing domain: {DOMAIN_HOST} (ID: {domain_id})")
+                        print(
+                            f"  ✓ Deleted existing domain: {DOMAIN_HOST} (ID: {domain_id})"
+                        )
                     else:
-                        print(f"  - Could not delete domain: {delete_response.status_code}")
+                        print(
+                            f"  - Could not delete domain: {delete_response.status_code}"
+                        )
                     break
             else:
                 print(f"  - Domain {DOMAIN_HOST} did not exist")
@@ -157,13 +217,13 @@ def setup_test_data():
     print("\n" + "=" * 60)
     print("SETTING UP TEST DATA")
     print("=" * 60)
-    
+
     # 1. Create domain
     print("\n[1] Creating domain...")
     domain_data = {
         "host": DOMAIN_HOST,
         "active": True,
-        "description": "Test e-commerce domain"
+        "description": "Test e-commerce domain",
     }
     response = admin_request("POST", "/api/domains", domain_data)
     if response.status_code in [200, 201]:
@@ -173,17 +233,17 @@ def setup_test_data():
     else:
         print(f"  ✗ Failed to create domain: {response.status_code} - {response.text}")
         return None
-    
+
     # 2. Create tests
     print("\n[2] Creating tests...")
-    
+
     # Test for /cart
     cart_test_data = {
         "name": "Cart A/B Test",
         "subpath": "/cart",
         "active": True,
         "description": "Testing cart page variants",
-        "domainModel": {"domain_id": domain_id}
+        "domainModel": {"domain_id": domain_id},
     }
     response = admin_request("POST", "/api/tests", cart_test_data)
     if response.status_code in [200, 201]:
@@ -191,16 +251,18 @@ def setup_test_data():
         cart_test_id = cart_test.get("test_id")
         print(f"  ✓ Created test: Cart A/B Test (ID: {cart_test_id})")
     else:
-        print(f"  ✗ Failed to create cart test: {response.status_code} - {response.text}")
+        print(
+            f"  ✗ Failed to create cart test: {response.status_code} - {response.text}"
+        )
         return None
-    
+
     # Test for /user
     user_test_data = {
         "name": "User Page Test",
         "subpath": "/user",
         "active": True,
         "description": "Testing user page variants",
-        "domainModel": {"domain_id": domain_id}
+        "domainModel": {"domain_id": domain_id},
     }
     response = admin_request("POST", "/api/tests", user_test_data)
     if response.status_code in [200, 201]:
@@ -208,55 +270,65 @@ def setup_test_data():
         user_test_id = user_test.get("test_id")
         print(f"  ✓ Created test: User Page Test (ID: {user_test_id})")
     else:
-        print(f"  ✗ Failed to create user test: {response.status_code} - {response.text}")
+        print(
+            f"  ✗ Failed to create user test: {response.status_code} - {response.text}"
+        )
         return None
-    
+
     # 3. Create variants
     print("\n[3] Creating variants...")
-    
+
     variants = {}
-    
+
     # Cart variants (50/50)
-    for i, (name, weight) in enumerate([("Cart-Variant-A", 50), ("Cart-Variant-B", 50)]):
+    for i, (name, weight) in enumerate(
+        [("Cart-Variant-A", 50), ("Cart-Variant-B", 50)]
+    ):
         variant_data = {
             "name": name,
             "active": True,
             "weight": weight,
             "description": f"Cart variant with {weight}% weight",
-            "testModel": {"test_id": cart_test_id}
+            "testModel": {"test_id": cart_test_id},
         }
         response = admin_request("POST", "/api/variants", variant_data)
         if response.status_code in [200, 201]:
             variant = response.json()
-            variants[f"cart_v{i+1}"] = variant.get("variant_id")
-            print(f"  ✓ Created variant: {name} (weight: {weight}, ID: {variant.get('variant_id')})")
+            variants[f"cart_v{i + 1}"] = variant.get("variant_id")
+            print(
+                f"  ✓ Created variant: {name} (weight: {weight}, ID: {variant.get('variant_id')})"
+            )
         else:
-            print(f"  ✗ Failed to create variant {name}: {response.status_code} - {response.text}")
-    
+            print(
+                f"  ✗ Failed to create variant {name}: {response.status_code} - {response.text}"
+            )
+
     # User variants (50/30/20)
-    for i, (name, weight) in enumerate([
-        ("User-Variant-A", 50),
-        ("User-Variant-B", 30),
-        ("User-Variant-C", 20)
-    ]):
+    for i, (name, weight) in enumerate(
+        [("User-Variant-A", 50), ("User-Variant-B", 30), ("User-Variant-C", 20)]
+    ):
         variant_data = {
             "name": name,
             "active": True,
             "weight": weight,
             "description": f"User variant with {weight}% weight",
-            "testModel": {"test_id": user_test_id}
+            "testModel": {"test_id": user_test_id},
         }
         response = admin_request("POST", "/api/variants", variant_data)
         if response.status_code in [200, 201]:
             variant = response.json()
-            variants[f"user_v{i+1}"] = variant.get("variant_id")
-            print(f"  ✓ Created variant: {name} (weight: {weight}, ID: {variant.get('variant_id')})")
+            variants[f"user_v{i + 1}"] = variant.get("variant_id")
+            print(
+                f"  ✓ Created variant: {name} (weight: {weight}, ID: {variant.get('variant_id')})"
+            )
         else:
-            print(f"  ✗ Failed to create variant {name}: {response.status_code} - {response.text}")
-    
+            print(
+                f"  ✗ Failed to create variant {name}: {response.status_code} - {response.text}"
+            )
+
     # 4. Create endpoints for variants (these handle A/B test traffic)
     print("\n[4] Creating variant endpoints...")
-    
+
     endpoint_configs = [
         # Cart variant 1 endpoints
         ("cart_v1_e1", "cart_v1", "Cart-V1-Endpoint-1"),
@@ -274,7 +346,7 @@ def setup_test_data():
         ("user_v3_e1", "user_v3", "User-V3-Endpoint-1"),
         ("user_v3_e2", "user_v3", "User-V3-Endpoint-2"),
     ]
-    
+
     for endpoint_key, variant_key, description in endpoint_configs:
         port = ENDPOINT_PORTS[endpoint_key]
         endpoint_data = {
@@ -282,23 +354,25 @@ def setup_test_data():
             "active": True,
             "alive": True,  # Will be updated by health checker
             "description": description,
-            "variantModel": {"variant_id": variants[variant_key]}
+            "variantModel": {"variant_id": variants[variant_key]},
             # Note: No domainModel - these are variant-specific endpoints
         }
         response = admin_request("POST", "/api/endpoints", endpoint_data)
         if response.status_code in [200, 201]:
             print(f"  ✓ Created variant endpoint: {description} -> localhost:{port}")
         else:
-            print(f"  ✗ Failed to create endpoint {description}: {response.status_code} - {response.text}")
-    
+            print(
+                f"  ✗ Failed to create endpoint {description}: {response.status_code} - {response.text}"
+            )
+
     # 5. Create default domain endpoints (fallback when no test matches)
     print("\n[5] Creating default domain endpoints...")
-    
+
     default_endpoint_configs = [
         ("domain_default_1", "Domain-Default-Endpoint-1"),
         ("domain_default_2", "Domain-Default-Endpoint-2"),
     ]
-    
+
     for endpoint_key, description in default_endpoint_configs:
         port = ENDPOINT_PORTS[endpoint_key]
         endpoint_data = {
@@ -306,78 +380,69 @@ def setup_test_data():
             "active": True,
             "alive": True,
             "description": description,
-            "domainModel": {"domain_id": domain_id}
+            "domainModel": {"domain_id": domain_id},
             # Note: No variantModel - these are domain default endpoints
         }
         response = admin_request("POST", "/api/endpoints", endpoint_data)
         if response.status_code in [200, 201]:
             print(f"  ✓ Created default endpoint: {description} -> localhost:{port}")
         else:
-            print(f"  ✗ Failed to create endpoint {description}: {response.status_code} - {response.text}")
-    
+            print(
+                f"  ✗ Failed to create endpoint {description}: {response.status_code} - {response.text}"
+            )
+
     return {
         "domain_id": domain_id,
         "cart_test_id": cart_test_id,
         "user_test_id": user_test_id,
-        "variants": variants
+        "variants": variants,
     }
-
-
-def wait_for_health_check():
-    """Wait for the health checker to mark endpoints as alive"""
-    print("\n" + "=" * 60)
-    print("WAITING FOR HEALTH CHECKS")
-    print("=" * 60)
-    print("  Health checks run every 30 seconds...")
-    print("  Waiting up to 35 seconds for endpoints to be marked alive...")
-    
-    for i in range(35):
-        time.sleep(1)
-        print(f"  {i+1}/35 seconds...", end="\r")
-    
-    print("\n  ✓ Health check period complete!")
 
 
 def generate_session_id():
     """Generate a random session ID for cookie testing"""
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=16))
+    return "".join(random.choices(string.ascii_letters + string.digits, k=16))
 
 
 def simulate_routing_requests():
     """Perform routing requests to demonstrate the system"""
+    global mock_servers
+
     print("\n" + "=" * 60)
     print("SIMULATING ROUTING REQUESTS")
     print("=" * 60)
-    
+
     # Statistics tracking
     variant_counts = defaultdict(int)
     endpoint_counts_by_variant = defaultdict(lambda: defaultdict(int))
-    
+
     # Test 1: Weighted variant distribution (many different users)
     print("\n[TEST 1] Weighted Variant Distribution")
     print("-" * 40)
     print("Sending 100 requests to /cart (expected: ~50/50 split)")
     print("Sending 100 requests to /user (expected: ~50/30/20 split)")
-    
+
     cart_variants = defaultdict(int)
     user_variants = defaultdict(int)
-    
+
     # Requests to /cart - each with a new session (new user)
     for i in range(100):
-        print(f"  /cart request {i+1}/100", end="\r")
+        print(f"  /cart request {i + 1}/100", end="\r")
         try:
             response = requests.get(
                 f"http://localhost:8080/cart",
                 headers={"Host": DOMAIN_HOST},
                 allow_redirects=False,
-                timeout=5
+                timeout=5,
             )
             # Debug: print first few responses
             if i < 3:
-                print(f"\n  DEBUG [{i+1}]: Status={response.status_code}, Location={response.headers.get('Location', 'N/A')}")
+                print(
+                    f"\n  DEBUG [{i + 1}]: Status={response.status_code}, Location={response.headers.get('Location', 'N/A')}"
+                )
                 if response.status_code != 302:
                     print(f"    Body: {response.text[:300]}")
-            
+
             # The redirect location tells us which endpoint was selected
             if response.status_code == 302:
                 location = response.headers.get("Location", "")
@@ -392,11 +457,11 @@ def simulate_routing_requests():
                     print(f"  DEBUG: Location doesn't match pattern: {location}")
         except Exception as e:
             print(f"\n  - Request error: {e}")
-    
+
     print(f"\n  /cart results (100 requests, new session each):")
     for variant, count in sorted(cart_variants.items()):
         print(f"    {variant}: {count} ({count}%)")
-    
+
     # Requests to /user - each with a new session (new user)
     for i in range(100):
         try:
@@ -404,7 +469,7 @@ def simulate_routing_requests():
                 f"http://localhost:8080/user",
                 headers={"Host": DOMAIN_HOST},
                 allow_redirects=False,
-                timeout=5
+                timeout=5,
             )
             if response.status_code == 302:
                 location = response.headers.get("Location", "")
@@ -418,19 +483,19 @@ def simulate_routing_requests():
                         user_variants["User-Variant-C (20)"] += 1
         except Exception as e:
             pass
-    
+
     print(f"\n  /user results (100 requests, new session each):")
     for variant, count in sorted(user_variants.items()):
         print(f"    {variant}: {count} ({count}%)")
-    
+
     # Test 2: Cookie persistence (same user stays on same variant)
     print("\n\n[TEST 2] Cookie-Based Session Persistence")
     print("-" * 40)
     print("Same user (with cookie) should always get the same variant")
-    
+
     # Create a session to persist cookies
     session = requests.Session()
-    
+
     print("\n  User A making 10 requests to /cart:")
     user_a_variants = []
     for i in range(10):
@@ -439,7 +504,7 @@ def simulate_routing_requests():
                 f"http://localhost:8080/cart",
                 headers={"Host": DOMAIN_HOST},
                 allow_redirects=False,
-                timeout=5
+                timeout=5,
             )
             if response.status_code == 302:
                 location = response.headers.get("Location", "")
@@ -451,13 +516,13 @@ def simulate_routing_requests():
                         user_a_variants.append("B")
         except:
             pass
-    
+
     print(f"    Variants received: {' -> '.join(user_a_variants)}")
     if len(set(user_a_variants)) == 1:
         print(f"    ✓ SUCCESS: User A consistently got variant {user_a_variants[0]}")
     else:
         print(f"    ✗ ISSUE: User A got different variants (check cookie handling)")
-    
+
     # Different user (new session)
     session2 = requests.Session()
     print("\n  User B making 10 requests to /cart:")
@@ -468,7 +533,7 @@ def simulate_routing_requests():
                 f"http://localhost:8080/cart",
                 headers={"Host": DOMAIN_HOST},
                 allow_redirects=False,
-                timeout=5
+                timeout=5,
             )
             if response.status_code == 302:
                 location = response.headers.get("Location", "")
@@ -480,28 +545,28 @@ def simulate_routing_requests():
                         user_b_variants.append("B")
         except:
             pass
-    
+
     print(f"    Variants received: {' -> '.join(user_b_variants)}")
     if len(set(user_b_variants)) == 1:
         print(f"    ✓ SUCCESS: User B consistently got variant {user_b_variants[0]}")
     else:
         print(f"    ✗ ISSUE: User B got different variants (check cookie handling)")
-    
+
     # Test 3: Round-robin load balancing within a variant
     print("\n\n[TEST 3] Round-Robin Load Balancing")
     print("-" * 40)
     print("Same variant should distribute requests across its endpoints evenly")
-    
+
     # Reset request counts
     with request_counts_lock:
         request_counts.clear()
-    
+
     # Use a session to stay on the same variant
     session3 = requests.Session()
-    
+
     print("\n  Sending 20 requests with same session to /cart:")
     print("  (Should alternate between 2 endpoints of the same variant)")
-    
+
     endpoints_hit = []
     for i in range(20):
         try:
@@ -509,7 +574,7 @@ def simulate_routing_requests():
                 f"http://localhost:8080/cart",
                 headers={"Host": DOMAIN_HOST},
                 allow_redirects=True,  # Actually follow redirect to hit endpoint
-                timeout=5
+                timeout=5,
             )
             if response.status_code == 200:
                 # Parse response to see which endpoint responded
@@ -519,74 +584,98 @@ def simulate_routing_requests():
                     endpoints_hit.append(port)
         except Exception as e:
             pass
-    
+
     if endpoints_hit:
         print(f"    Endpoints hit: {' -> '.join(endpoints_hit[:10])}...")
-        
+
         # Count distribution
         endpoint_dist = defaultdict(int)
         for ep in endpoints_hit:
             endpoint_dist[ep] += 1
-        
+
         print(f"    Distribution across endpoints:")
         for ep, count in sorted(endpoint_dist.items()):
             print(f"      Port {ep}: {count} requests")
-        
+
         if len(endpoint_dist) == 2:
             counts = list(endpoint_dist.values())
             if abs(counts[0] - counts[1]) <= 2:
                 print(f"    ✓ SUCCESS: Load balanced evenly between 2 endpoints")
             else:
-                print(f"    ~ Somewhat balanced (difference: {abs(counts[0] - counts[1])})")
+                print(
+                    f"    ~ Somewhat balanced (difference: {abs(counts[0] - counts[1])})"
+                )
         elif len(endpoint_dist) == 1:
             print(f"    Note: Only one endpoint was hit (other may be unhealthy)")
-    
-    # Test 4: Multiple paths, same user
-    print("\n\n[TEST 4] Multiple Tests, Same User")
+
+    # Test 4: Health check failure detection
+    print("\n\n[TEST 4] Health Check Failure Detection")
     print("-" * 40)
-    print("Same user accessing different paths gets potentially different variants")
-    
-    session4 = requests.Session()
-    
-    print("\n  User C accessing /cart and /user alternately (5 times each):")
-    
-    for i in range(5):
+    print("Testing that unhealthy endpoints are not used after health check fails")
+
+    # Stop one of the cart variant A endpoints (port 9001)
+    print("\n  Stopping mock server on port 9001 (cart_v1_e1)...")
+    if 9001 in mock_servers:
+        mock_servers[9001].shutdown()
+        print("  ✓ Server on port 9001 stopped")
+
+    print("\n  Waiting 35 seconds for health checks to detect the failure...")
+    for i in range(35):
+        time.sleep(1)
+        print(f"  {i + 1}/35 seconds...", end="\r")
+    print("\n  ✓ Health check period complete")
+
+    # Make requests to cart endpoint (which includes the stopped server)
+    print("\n  Making 50 requests to /cart to check if stopped endpoint is avoided:")
+
+    # Reset request counts
+    with request_counts_lock:
+        request_counts.clear()
+
+    ports_hit = []
+    for i in range(50):
         try:
-            # Request to /cart
-            response = session4.get(
+            response = requests.get(
                 f"http://localhost:8080/cart",
                 headers={"Host": DOMAIN_HOST},
-                allow_redirects=False,
-                timeout=5
+                allow_redirects=True,
+                timeout=5,
             )
-            cart_port = ""
-            if response.status_code == 302:
-                location = response.headers.get("Location", "")
-                if ":900" in location:
-                    cart_port = location.split(":")[2].split("/")[0]
-            
-            # Request to /user
-            response = session4.get(
-                f"http://localhost:8080/user",
-                headers={"Host": DOMAIN_HOST},
-                allow_redirects=False,
-                timeout=5
-            )
-            user_port = ""
-            if response.status_code == 302:
-                location = response.headers.get("Location", "")
-                if ":901" in location:
-                    user_port = location.split(":")[2].split("/")[0]
-            
-            print(f"    Request {i+1}: /cart -> port {cart_port}, /user -> port {user_port}")
+            if response.status_code == 200:
+                text = response.text
+                if "port" in text:
+                    port = int(text.split("port ")[1].split(")")[0])
+                    ports_hit.append(port)
         except Exception as e:
-            print(f"    Request {i+1}: Error - {e}")
-    
+            pass
+
+    print(f"\n  Results from 50 requests:")
+    port_distribution = defaultdict(int)
+    for port in ports_hit:
+        port_distribution[port] += 1
+
+    for port, count in sorted(port_distribution.items()):
+        print(f"    Port {port}: {count} requests")
+
+    # Check if the stopped server (9001) was used
+    if 9001 in port_distribution:
+        print(
+            f"    ✗ ISSUE: Stopped server on port 9001 was still used ({port_distribution[9001]} requests)"
+        )
+    else:
+        print(f"    ✓ SUCCESS: Stopped server on port 9001 was not used")
+
+    # Also check that requests were distributed among healthy endpoints
+    if len(port_distribution) > 0:
+        print(
+            f"    Note: Requests were distributed among {len(port_distribution)} endpoint(s)"
+        )
+
     # Final summary
     print("\n\n" + "=" * 60)
     print("MOCK SERVER REQUEST SUMMARY")
     print("=" * 60)
-    
+
     with request_counts_lock:
         if request_counts:
             for endpoint, count in sorted(request_counts.items()):
@@ -596,45 +685,54 @@ def simulate_routing_requests():
 
 
 def main():
+    global jwt_token, mock_servers
+
     print("""
 ╔═══════════════════════════════════════════════════════════════╗
 ║          ABRA ROUTING SIMULATION TEST                         ║
 ║                                                               ║
 ║  This script demonstrates:                                    ║
+║  • JWT authentication for admin API                           ║
 ║  • Weighted variant selection (A/B testing)                   ║
 ║  • Round-robin load balancing across endpoints                ║
 ║  • Cookie-based session persistence                           ║
 ║  • Health checking of endpoints                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 """)
-    
+
     # Check if ABRA backend is running
     print("Checking if ABRA backend is running...")
     try:
-        response = requests.get(f"{ADMIN_BASE_URL}/api/domains", timeout=5)
+        response = requests.get(f"{ADMIN_BASE_URL}/api/auth/login", timeout=5)
         print(f"  ✓ ABRA backend is running at {ADMIN_BASE_URL}")
     except requests.exceptions.ConnectionError:
         print(f"  ✗ ERROR: Cannot connect to ABRA backend at {ADMIN_BASE_URL}")
         print(f"    Please start the backend first: ./gradlew bootRun")
         return
-    
+
+    # Authenticate and get JWT token
+    jwt_token = login_and_get_token()
+    if not jwt_token:
+        print("\n✗ Failed to authenticate. Cannot proceed with admin API calls.")
+        print(f"   Make sure the default user is configured:")
+        print(f"   - Username: {ADMIN_USERNAME}")
+        print(f"   - Password: {ADMIN_PASSWORD}")
+        return
+
     # Start mock servers
-    start_all_mock_servers()
-    
+    threads, mock_servers = start_all_mock_servers()
+
     # Cleanup and setup
     cleanup_existing_data()
     test_data = setup_test_data()
-    
+
     if not test_data:
         print("\n✗ Failed to set up test data. Exiting.")
         return
-    
-    # Wait for health checks
-    # wait_for_health_check()
-    
+
     # Run simulation
     simulate_routing_requests()
-    
+
     print("\n" + "=" * 60)
     print("SIMULATION COMPLETE")
     print("=" * 60)
@@ -642,12 +740,20 @@ def main():
     print("You can also manually test with:")
     print(f"  curl -H 'Host: {DOMAIN_HOST}' http://localhost:8080/cart -v")
     print(f"  curl -H 'Host: {DOMAIN_HOST}' http://localhost:8080/user -v")
-    
+
     try:
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
         print("\n\nShutting down...")
+        print("Stopping all mock servers...")
+        for port, server in mock_servers.items():
+            try:
+                server.shutdown()
+                print(f"  ✓ Stopped server on port {port}")
+            except Exception as e:
+                print(f"  ✗ Error stopping server on port {port}: {e}")
+        print("All servers stopped.")
 
 
 if __name__ == "__main__":

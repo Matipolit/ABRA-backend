@@ -1,6 +1,7 @@
 package com.example.abra.models;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
 import java.util.List;
 import lombok.AllArgsConstructor;
@@ -34,7 +35,7 @@ public class TestModel {
         orphanRemoval = true,
         mappedBy = "testModel"
     )
-    @JsonIgnoreProperties({ "testModel", "endpointModels" })
+    @JsonManagedReference
     private List<VariantModel> variantModels;
 
     @ManyToOne
